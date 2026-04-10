@@ -1,0 +1,14 @@
+{
+  "name": "donation-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "server": "cd netlify/functions && npm run dev"
+  },
+  "workspaces": [
+    "frontend",
+    "netlify/functions"
+  ]
+}
