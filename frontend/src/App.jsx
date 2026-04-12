@@ -8,6 +8,7 @@ import ProjectsList from './pages/ProjectsList'
 import ProjectDetail from './pages/ProjectDetail'
 import Stories from './pages/Stories'
 import NotFound from './pages/NotFound'
+import Certificates from './pages/Certificates'
 import Login from './pages/admin/Login'
 import Dashboard from './pages/admin/Dashboard'
 import ProjectManage from './pages/admin/ProjectManage'
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/projects" element={<><Navbar /><ProjectsList /><Footer /></>} />
           <Route path="/projects/:id" element={<><Navbar /><ProjectDetail /><Footer /></>} />
           <Route path="/stories" element={<><Navbar /><Stories /><Footer /></>} />
+          <Route path="/certificates" element={<><Navbar /><Certificates /><Footer /></>} />
           <Route path="/admin/login" element={<Login />} />
           
           {/* Admin */}

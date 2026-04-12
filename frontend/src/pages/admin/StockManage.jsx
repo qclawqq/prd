@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getStockOutList, createStockOut } from '../../api/stock'
-import { getAdminProjects } from '../../api/projects'
+import { getAdminProjects, getProjectStock } from '../../api/projects'
 import { formatMoney } from '../../utils/formatters'
 
 export default function StockManage() {
@@ -16,9 +16,8 @@ export default function StockManage() {
     getStockOutList(filter).then(setRecords).catch(() => {})
     getAdminProjects({ status: 'ongoing' }).then(ps => {
       setProjects(ps)
-      // load stock for each
       ps.forEach(p => {
-        import('../../api/projects').then(m => m.getProjectStock(p.id)).then(s => setProjectStock(prev => ({...prev, [p.id]: s}))).catch(() => {})
+        getProjectStock(p.id).then(s => setProjectStock(prev => ({...prev, [p.id]: s}))).catch(() => {})
       })
     }).catch(() => {})
   }
@@ -85,7 +84,7 @@ export default function StockManage() {
               <td>{r.recipient || '-'}</td>
               <td>{r.purpose || '-'}</td>
               <td>{r.order_date}</td>
-              <td>{r.created_at?.slice(0, 16)}</td>
+              <td>{r.created_at?.slice(0, 10)}</td>
             </tr>
           ))}
           {records.length === 0 && <tr><td colSpan={9} className="text-center">暂无记录</td></tr>}

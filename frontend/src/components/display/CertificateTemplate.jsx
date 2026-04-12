@@ -49,22 +49,17 @@ export const CERTIFICATE_HTML = (data) => `
   </div>
 
   <!-- 底部信息 -->
-  <div style="display:flex; justify-content:space-between; align-items:flex-end; padding:0 20px; margin-top:20px;">
-    <div style="text-align:center;">
-      <div style="font-size:13px; color:#888; margin-bottom:4px;">发证日期</div>
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:0 40px; margin-top:20px;">
+    <div style="text-align:center; flex:1; padding-top:40px;">
+      <div style="font-size:13px; color:#888; margin-bottom:8px;">发证日期</div>
       <div style="font-size:14px;">${data.date || ''}</div>
     </div>
-    <div style="text-align:center;">
-      <!-- 公章占位 -->
-      <div style="width:100px; height:100px; border:2px solid #c0392b; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 4px;">
-        <div style="text-align:center;">
-          <div style="font-size:11px; color:#c0392b; font-weight:bold;">爱心公益</div>
-          <div style="font-size:10px; color:#c0392b;">认证</div>
-        </div>
-      </div>
+    <div style="text-align:center; flex:1;">
+      <!-- 电子公章 -->
+      <img src="https://res.cloudinary.com/dtultipb8/image/upload/v1775887813/donation-platform/dkwficviy4pjmzgzykle.png" alt="公章" style="width:120px; height:120px; opacity:0.9; margin-top:-30px;" />
     </div>
-    <div style="text-align:center;">
-      <div style="font-size:13px; color:#888; margin-bottom:4px;">证书编号</div>
+    <div style="text-align:center; flex:1; padding-top:40px;">
+      <div style="font-size:13px; color:#888; margin-bottom:8px;">证书编号</div>
       <div style="font-size:13px; color:#c0392b;">${data.certificateCode || ''}</div>
     </div>
   </div>

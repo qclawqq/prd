@@ -5,12 +5,14 @@ import { getPublicStories } from '../api/loveStories'
 import { getPublicLoveWall } from '../api/loveWall'
 import { getPublicAchievements } from '../api/achievements'
 import ProjectCard from '../components/display/ProjectCard'
+import AchievementModal from '../components/display/AchievementModal'
 
 export default function Home() {
   const [projects, setProjects] = useState([])
   const [stories, setStories] = useState([])
   const [loveWall, setLoveWall] = useState([])
   const [achievements, setAchievements] = useState([])
+  const [selectedAchievement, setSelectedAchievement] = useState(null)
   const [currentSlide, setCurrentSlide] = useState(0)
 
   useEffect(() => {
@@ -81,10 +83,13 @@ export default function Home() {
       {achievements.length > 0 && (
         <section className="section alt-bg">
           <div className="container">
-            <h2 className="section-title">最新成果展示</h2>
+            <div className="section-header">
+              <h2 className="section-title">最新成果展示</h2>
+              <Link to="/stories" className="more-link">查看全部 →</Link>
+            </div>
             <div className="achievement-grid">
               {achievements.map(a => (
-                <div key={a.id} className="achievement-card">
+                <div key={a.id} className="achievement-card" onClick={() => setSelectedAchievement(a)} style={{cursor: 'pointer'}}>
                   {a.media_urls?.[0] && <img src={a.media_urls[0]} alt={a.title} className="achievement-thumb" />}
                   <h3>{a.title}</h3>
                   <p className="achievement-sub">{a.subtitle || a.paragraph1?.slice(0, 80)}</p>
@@ -148,9 +153,22 @@ export default function Home() {
               <p>将公益项目分享给更多朋友，汇聚更多爱心力量</p>
               <button className="join-btn" onClick={() => navigator.share?.({ title: '爱心公益平台', url: window.location.href }).catch(() => alert('请手动分享链接'))}>立即分享</button>
             </div>
+            <div className="join-card">
+              <div className="join-icon">📜</div>
+              <h3>查询证书</h3>
+              <p>输入姓名或电话，查询电子捐赠证书生成进度</p>
+              <Link to="/certificates" className="join-btn">立即查询</Link>
+            </div>
           </div>
         </div>
       </section>
+
+      {selectedAchievement && (
+        <AchievementModal
+          achievement={selectedAchievement}
+          onClose={() => setSelectedAchievement(null)}
+        />
+      )}
     </div>
   )
 }

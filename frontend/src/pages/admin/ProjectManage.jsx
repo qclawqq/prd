@@ -2,14 +2,17 @@ import { useEffect, useState } from 'react'
 import { getAdminProjects, createProject, updateProject, deleteProject, endProject } from '../../api/projects'
 import { formatMoney, projectTypeLabel, projectStatusLabel, calcGoalValue, calcCurrentValue, calcProgressPercent } from '../../utils/formatters'
 import CloudinaryUpload from '../../components/upload/CloudinaryUpload'
+import MediaPicker from '../../components/display/MediaPicker'
 
 export default function ProjectManage() {
   const [projects, setProjects] = useState([])
   const [filter, setFilter] = useState({ status: '', type: '', search: '' })
   const [showModal, setShowModal] = useState(false)
   const [editData, setEditData] = useState(null)
-  const [form, setForm] = useState({ title:'', background:'', project_type:'goods_only', goods_name:'', goods_unit:'件', goods_price:'', goods_target_qty:'', money_target:'', volunteer_target:0, deadline:'', status:'draft', media_urls:[], remarks:'' })
+  const [form, setForm] = useState({ title:'', background:'', project_type:'goods_only', goods_name:'', goods_unit:'件', goods_price:'', goods_target_qty:'', money_target:'', volunteer_target:0, deadline:'', status:'draft', media_urls:[], remarks:'', paymentQrUrl:'', goodsDeliveryAddress:'' })
   const [loading, setLoading] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
+  const [pickerFor, setPickerFor] = useState('media') // 'media' | 'qr'
 
   const load = () => getAdminProjects(filter).then(setProjects).catch(() => {})
 
@@ -17,7 +20,7 @@ export default function ProjectManage() {
 
   const openCreate = () => {
     setEditData(null)
-    setForm({ title:'', background:'', project_type:'goods_only', goods_name:'', goods_unit:'件', goods_price:'', goods_target_qty:'', money_target:'', volunteer_target:0, deadline:'', status:'draft', media_urls:[], remarks:'' })
+    setForm({ title:'', background:'', project_type:'goods_only', goods_name:'', goods_unit:'件', goods_price:'', goods_target_qty:'', money_target:'', volunteer_target:0, deadline:'', status:'draft', media_urls:[], remarks:'', paymentQrUrl:'', goodsDeliveryAddress:'' })
     setShowModal(true)
   }
 
@@ -27,8 +30,8 @@ export default function ProjectManage() {
       title: p.title, background: p.background || '', project_type: p.project_type,
       goods_name: p.goods_name || '', goods_unit: p.goods_unit || '件', goods_price: p.goods_price || '',
       goods_target_qty: p.goods_target_qty || '', money_target: p.money_target || '',
-      volunteer_target: p.volunteer_target || 0, deadline: p.deadline || '', status: p.status,
-      media_urls: p.media_urls || [], remarks: p.remarks || '',
+      volunteer_target: p.volunteer_target || 0, deadline: p.deadline ? p.deadline.slice(0, 10) : '', status: p.status,
+      media_urls: p.media_urls || [], remarks: p.remarks || '', paymentQrUrl: p.payment_qr_url || '', goodsDeliveryAddress: p.goods_delivery_address || '',
     })
     setShowModal(true)
   }
@@ -37,7 +40,15 @@ export default function ProjectManage() {
     e.preventDefault()
     setLoading(true)
     try {
-      const data = { ...form, goods_price: Number(form.goods_price)||0, goods_target_qty: Number(form.goods_target_qty)||0, money_target: Number(form.money_target)||0, volunteer_target: Number(form.volunteer_target)||0 }
+      const data = {
+        ...form,
+        payment_qr_url: form.paymentQrUrl || null,
+        goods_delivery_address: form.goodsDeliveryAddress || null,
+        goods_price: Number(form.goods_price)||0,
+        goods_target_qty: Number(form.goods_target_qty)||0,
+        money_target: Number(form.money_target)||0,
+        volunteer_target: Number(form.volunteer_target)||0,
+      }
       if (editData) await updateProject(editData.id, data)
       else await createProject(data)
       setShowModal(false)
@@ -56,7 +67,7 @@ export default function ProjectManage() {
     try { await endProject(p.id); load() } catch (err) { alert(err.response?.data?.error || '操作失败') }
   }
 
-  const addMedia = (url) => setForm(f => ({ ...f, media_urls: [...f.media_urls, url] }))
+  const addMedia = (url) => setForm(f => ({ ...f, media_urls: [...(f.media_urls || []), url] }))
   const removeMedia = (i) => setForm(f => ({ ...f, media_urls: f.media_urls.filter((_, idx) => idx !== i) }))
 
   return (
@@ -99,7 +110,7 @@ export default function ProjectManage() {
                 <td>{formatMoney(cur)}</td>
                 <td><div style={{display:'flex',alignItems:'center',gap:'8px'}}><div className="progress-bar" style={{width:60}}><div className="progress-bar-fill" style={{width:pct+'%'}} /></div>{pct}%</div></td>
                 <td><span className={`status-badge status-${p.status}`}>{projectStatusLabel(p.status)}</span></td>
-                <td>{p.deadline}</td>
+                <td>{p.deadline ? p.deadline.slice(0, 10) : '-'}</td>
                 <td>
                   <button className="btn-sm" onClick={() => openEdit(p)}>编辑</button>
                   {p.status === 'ongoing' && <button className="btn-sm btn-warn" onClick={() => handleEnd(p)}>结束</button>}
@@ -153,11 +164,30 @@ export default function ProjectManage() {
               <div className="form-group">
                 <label>媒体素材</label>
                 <div className="media-preview">
-                  {form.media_urls.map((u, i) => <div key={i} className="media-thumb-wrap"><img src={u} alt="" /><button type="button" onClick={() => removeMedia(i)}>×</button></div>)}
+                  {(form.media_urls || []).map((u, i) => <div key={i} className="media-thumb-wrap"><img src={u} alt="" /><button type="button" onClick={() => removeMedia(i)}>×</button></div>)}
                 </div>
-                <CloudinaryUpload onUpload={addMedia} />
+                <button type="button" className="btn-secondary" onClick={() => { setPickerFor('media'); setShowPicker(true) }}>+ 从素材库选择</button>
+                {showPicker && (
+                  <MediaPicker onSelect={(url) => {
+                    if (pickerFor === 'qr') setForm(f => ({...f, paymentQrUrl: url}))
+                    else if (url) addMedia(url)
+                    setShowPicker(false)
+                  }} />
+                )}
               </div>
               <div className="form-group"><label>备注（仅后台可见）</label><textarea value={form.remarks} onChange={e => setForm(f => ({...f, remarks: e.target.value}))} rows={2} /></div>
+              {form.project_type !== 'goods_only' && (
+                <div className="form-group">
+                  <label>收款二维码</label>
+                  <div style={{display:'flex',alignItems:'center',gap:12}}>
+                    {form.paymentQrUrl && <img src={form.paymentQrUrl} alt="qr" style={{height:60,objectFit:'contain'}} />}
+                    <button type="button" className="btn-secondary" onClick={() => { setPickerFor('qr'); setShowPicker(true) }}>+ 选择二维码图片</button>
+                  </div>
+                </div>
+              )}
+              {form.project_type !== 'money_only' && (
+                <div className="form-group"><label>捐物寄送地址</label><input value={form.goodsDeliveryAddress} onChange={e => setForm(f => ({...f, goodsDeliveryAddress: e.target.value}))} placeholder="请填写物资寄送地址" /></div>
+              )}
               <div className="form-actions">
                 <button type="submit" disabled={loading} className="btn-primary">{loading ? '保存中...' : '保存'}</button>
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">取消</button>

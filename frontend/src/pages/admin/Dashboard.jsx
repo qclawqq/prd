@@ -57,7 +57,7 @@ export default function Dashboard() {
               <td>{d.project_title || '-'}</td>
               <td>{d.amount || d.goods_qty || '-'}</td>
               <td>{donationStatusLabel(d.status)}</td>
-              <td>{d.created_at?.slice(0, 16)}</td>
+              <td>{d.created_at?.slice(0, 10)}</td>
             </tr>
           ))}
         </tbody>

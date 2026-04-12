@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getAdminLoveWall, createLoveWall, updateLoveWall, deleteLoveWall } from '../../api/loveWall'
 import { getAdminDonations } from '../../api/donations'
 import CloudinaryUpload from '../../components/upload/CloudinaryUpload'
+import MediaPicker from '../../components/display/MediaPicker'
 
 export default function LoveWallManage() {
   const [list, setList] = useState([])
@@ -10,6 +11,7 @@ export default function LoveWallManage() {
   const [editData, setEditData] = useState(null)
   const [form, setForm] = useState({ type:'image', media_url:'', title:'', description:'', donation_id:'', sort_order:0, is_active:true })
   const [loading, setLoading] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
 
   const load = () => {
     getAdminLoveWall({}).then(setList).catch(() => {})
@@ -64,7 +66,7 @@ export default function LoveWallManage() {
             <form onSubmit={handleSubmit} className="modal-form">
               <div className="form-group"><label>标题</label><input value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} /></div>
               <div className="form-group"><label>类型</label><select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}><option value="image">图片</option><option value="video">视频</option></select></div>
-              <div className="form-group"><label>媒体文件 *</label>{form.media_url && <img src={form.media_url} alt="" style={{maxWidth:200, marginBottom:8}} />}<CloudinaryUpload onUpload={url => setForm(f => ({...f, media_url: url}))} /></div>
+              <div className="form-group"><label>媒体文件 *</label>{form.media_url && <img src={form.media_url} alt="" style={{maxWidth:200, marginBottom:8}} />}<button type="button" className="btn-secondary" onClick={() => setShowPicker(true)}>+ 从素材库选择</button>{showPicker && <MediaPicker onSelect={(url) => { setForm(f => ({...f, media_url: url})); setShowPicker(false) }} />}</div>
               <div className="form-group"><label>描述</label><textarea value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} rows={2} /></div>
               <div className="form-group"><label>关联捐赠记录</label><select value={form.donation_id} onChange={e => setForm(f => ({...f, donation_id: e.target.value}))}><option value="">无</option>{donations.map(d => <option key={d.id} value={d.id}>{d.donor_name} - {d.project_title}</option>)}</select></div>
               <div className="form-row">

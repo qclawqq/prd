@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getAdminAchievements, createAchievement, updateAchievement, deleteAchievement } from '../../api/achievements'
 import { getAdminProjects } from '../../api/projects'
 import CloudinaryUpload from '../../components/upload/CloudinaryUpload'
+import MediaPicker from '../../components/display/MediaPicker'
 
 export default function AchievementManage() {
   const [list, setList] = useState([])
@@ -11,6 +12,8 @@ export default function AchievementManage() {
   const [editData, setEditData] = useState(null)
   const [form, setForm] = useState({ projectId:'', title:'', subtitle:'', paragraph1:'', media_urls:[], conclusion:'', writeDate:'' })
   const [loading, setLoading] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
+  const [showPicker2, setShowPicker2] = useState(false)
 
   const load = () => {
     getAdminAchievements(filter).then(setList).catch(() => {})
@@ -34,7 +37,7 @@ export default function AchievementManage() {
   }
 
   const handleDelete = async (a) => { if (confirm('确认删除？')) { await deleteAchievement(a.id).catch(e => alert('删除失败')); load() } }
-  const addMedia = (url) => setForm(f => ({...f, media_urls: [...f.media_urls, url]}))
+  const addMedia = (url) => setForm(f => ({...f, media_urls: [...(f.media_urls || []), url]}))
   const removeMedia = (i) => setForm(f => ({...f, media_urls: f.media_urls.filter((_, idx) => idx !== i)}))
 
   return (
@@ -67,7 +70,7 @@ export default function AchievementManage() {
               <div className="form-group"><label>正文内容</label><textarea value={form.paragraph1} onChange={e => setForm(f => ({...f, paragraph1: e.target.value}))} rows={4} /></div>
               <div className="form-group"><label>结束语</label><textarea value={form.conclusion} onChange={e => setForm(f => ({...f, conclusion: e.target.value}))} rows={2} /></div>
               <div className="form-group"><label>撰稿日期 *</label><input type="date" value={form.writeDate} onChange={e => setForm(f => ({...f, writeDate: e.target.value}))} required /></div>
-              <div className="form-group"><label>媒体素材</label><div className="media-preview">{form.media_urls.map((u,i) => <div key={i} className="media-thumb-wrap"><img src={u} alt="" /><button type="button" onClick={() => removeMedia(i)}>×</button></div>)}</div><CloudinaryUpload onUpload={addMedia} /></div>
+              <div className="form-group"><label>媒体素材</label><div className="media-preview">{(form.media_urls||[]).map((u,i) => <div key={i} className="media-thumb-wrap"><img src={u} alt="" /><button type="button" onClick={() => removeMedia(i)}>×</button></div>)}</div><button type="button" className="btn-secondary" onClick={() => setShowPicker(true)}>+ 从素材库选择</button>{showPicker && <MediaPicker onSelect={(url) => { if (url) addMedia(url); setShowPicker(false) }} />}</div>
               <div className="form-actions"><button type="submit" disabled={loading} className="btn-primary">{loading ? '保存中...' : '保存'}</button><button type="button" onClick={() => setShowModal(false)} className="btn-secondary">取消</button></div>
             </form>
           </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { getAdminStories, createStory, updateStory, deleteStory, reorderStories } from '../../api/loveStories'
 import CloudinaryUpload from '../../components/upload/CloudinaryUpload'
+import MediaPicker from '../../components/display/MediaPicker'
 
 export default function LoveStoryManage() {
   const [list, setList] = useState([])
@@ -8,6 +9,7 @@ export default function LoveStoryManage() {
   const [editData, setEditData] = useState(null)
   const [form, setForm] = useState({ title:'', type:'image', media_url:'', donor_name:'', sort_order:0, is_active:true })
   const [loading, setLoading] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
   const [dragging, setDragging] = useState(null)
   const dragOver = useRef(null)
 
@@ -72,7 +74,7 @@ export default function LoveStoryManage() {
             <form onSubmit={handleSubmit} className="modal-form">
               <div className="form-group"><label>标题 *</label><input value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} required /></div>
               <div className="form-group"><label>类型</label><select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}><option value="image">图片</option><option value="video">视频</option></select></div>
-              <div className="form-group"><label>媒体文件 *</label>{form.media_url && <img src={form.media_url} alt="" style={{maxWidth:200, marginBottom:8}} />}<CloudinaryUpload onUpload={url => setForm(f => ({...f, media_url: url}))} /></div>
+              <div className="form-group"><label>媒体文件 *</label>{form.media_url && <img src={form.media_url} alt="" style={{maxWidth:200, marginBottom:8}} />}<button type="button" className="btn-secondary" onClick={() => setShowPicker(true)}>+ 从素材库选择</button>{showPicker && <MediaPicker onSelect={(url) => { setForm(f => ({...f, media_url: url})); setShowPicker(false) }} />}</div>
               <div className="form-group"><label>捐赠者（选填）</label><input value={form.donor_name} onChange={e => setForm(f => ({...f, donor_name: e.target.value}))} /></div>
               <div className="form-row">
                 <div className="form-group"><label>排序</label><input type="number" value={form.sort_order} onChange={e => setForm(f => ({...f, sort_order: Number(e.target.value)}))} /></div>

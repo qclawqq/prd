@@ -36,7 +36,7 @@ export default function DonationManage() {
         certificateCode: detail.certificate_code,
         orgName: '巴马瑶族自治县佳妮艺术支教教育服务中心',
       })
-    } catch (err) { alert('证书生成失败') }
+    } catch (err) { alert(err?.message || '证书生成失败，请重试') }
   }
 
   const handleManualSubmit = async (e) => {
@@ -92,7 +92,7 @@ export default function DonationManage() {
               <td>{d.type === 'money' ? formatMoney(d.amount) : d.goods_qty ? `${d.goods_qty}${d.goods_name || ''}` : '-'}</td>
               <td><span className={`status-badge status-${d.status}`}>{donationStatusLabel(d.status)}</span></td>
               <td>{d.certificate_code || '-'}</td>
-              <td>{d.created_at?.slice(0, 16)}</td>
+              <td>{d.created_at?.slice(0, 10)}</td>
               <td>
                 <select value={d.status} onChange={e => handleStatusChange(d, e.target.value)} className="status-select">
                   <option value="pending">待确认</option>

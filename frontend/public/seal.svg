@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <defs>
+    <!-- 顶部弧形路径：半径85，圆心(100,100)，从左到右，文字正立 -->
+    <path id="top-arc" d="M 15,100 A 85,85 0 0,1 185,100" fill="none"/>
+  </defs>
+
+  <!-- 外圆边框 -->
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#c41e3a" stroke-width="4"/>
+
+  <!-- 机构名称：沿弧线，左对齐开始（startOffset=0%），第一个字落在左侧 -->
+  <text fill="#c41e3a" font-size="13" font-weight="bold" font-family="'SimSun', '宋体', 'Noto Serif SC', serif">
+    <textPath href="#top-arc" startOffset="0%" text-anchor="start">
+      巴马瑶族自治县佳妮艺术支教教育服务中心
+    </textPath>
+  </text>
+
+  <!-- 底部文字：水平居中 -->
+  <text x="100" y="170" text-anchor="middle" fill="#c41e3a" font-size="15" font-weight="bold" font-family="'SimSun', '宋体', 'Noto Serif SC', serif">
+    爱心公益专用章
+  </text>
+
+  <!-- 中心五角星（极大，居中） -->
+  <!-- 外接圆半径约30，顶点在(100,70)，左下角约(77,106)，右下角约(123,106) -->
+  <polygon points="100,70 105.5,88.1 124.5,88.1 109.5,99.3 114.5,117.6 100,106.5 85.5,117.6 90.5,99.3 75.5,88.1 94.5,88.1" fill="#c41e3a"/>
+</svg>

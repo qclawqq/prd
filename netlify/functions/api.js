@@ -146,25 +146,72 @@ app.post('/api/donations', async (req, res) => {
 
   const name = isAnonymous ? '匿名' : (donorName || '热心人士')
 
+  if (type === 'money') {
+    // 捐款：状态 pending_payment，返回二维码，不立即更新进度
+    let qrUrl = proj.rows[0].payment_qr_url || null
+    if (!qrUrl) {
+      const gr = await query(`SELECT value FROM global_settings WHERE key='payment_qr_url'`)
+      qrUrl = gr.rows[0]?.value || null
+    }
+    const dr = await query(
+      `INSERT INTO donations (project_id, donor_name, donor_contact, type, amount, message, is_anonymous, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'pending_payment') RETURNING *`,
+      [projectId, name, donorContact, type, amount || null, message || null, isAnonymous || false]
+    )
+    res.json({
+      success: true,
+      donationId: dr.rows[0].id,
+      paymentQrUrl: qrUrl,
+      amount: amount || null,
+      type: 'money',
+    })
+    return
+  }
+
+  // 捐物/志愿者：立即创建记录，更新进度
+  const status = type === 'goods' ? 'pending_fulfillment' : 'pending'
   const dr = await query(
     `INSERT INTO donations (project_id, donor_name, donor_contact, type, amount, goods_name, goods_qty, volunteer_skill, message, is_anonymous, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending') RETURNING *`,
-    [projectId, name, donorContact, type, amount || null, goodsName || proj.rows[0].goods_name, goodsQty || null, volunteerSkill || null, message || null, isAnonymous || false]
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    [projectId, name, donorContact, type, amount || null, goodsName || proj.rows[0].goods_name, goodsQty || null, volunteerSkill || null, message || null, isAnonymous || false, status]
   )
   const donation = dr.rows[0]
 
   await ensureProgress(projectId)
-  if (type === 'goods' && proj.rows[0].project_type !== 'money_only') {
+  if (type === 'goods') {
     await query(`UPDATE project_progress SET current_goods_qty=current_goods_qty+($1) WHERE project_id=$2`, [goodsQty || 0, projectId])
-  } else if (type === 'money' && proj.rows[0].project_type !== 'goods_only') {
-    await query(`UPDATE project_progress SET current_money=current_money+($1) WHERE project_id=$2`, [amount || 0, projectId])
   } else if (type === 'volunteer') {
     await query(`UPDATE project_progress SET current_volunteer=current_volunteer+1 WHERE project_id=$1`, [projectId])
   }
-
   await checkAutoEnd(projectId)
 
-  res.json({ success: true, donationId: donation.id })
+  res.json({
+    success: true,
+    donationId: donation.id,
+    type,
+    goodsDeliveryAddress: type === 'goods' ? (proj.rows[0].goods_delivery_address || null) : null,
+  })
+})
+
+// ── Public: 确认支付（捐款专用）─────────────────────────────────
+app.post('/api/donations/:id/confirm-payment', async (req, res) => {
+  const { id } = req.params
+  const r = await query(`SELECT d.*, p.title as project_title, p.project_type FROM donations d LEFT JOIN projects p ON d.project_id=p.id WHERE d.id=$1`, [id])
+  if (!r.rows[0]) return res.status(404).json({ error: '记录不存在' })
+  const d = r.rows[0]
+  if (d.status !== 'pending_payment') return res.status(400).json({ error: '该记录状态无法确认支付' })
+
+  // 更新状态
+  await query(`UPDATE donations SET status='paid', updated_at=NOW() WHERE id=$1`, [id])
+
+  // 更新项目进度
+  await ensureProgress(d.project_id)
+  if (d.type === 'money') {
+    await query(`UPDATE project_progress SET current_money=current_money+($1) WHERE project_id=$2`, [d.amount || 0, d.project_id])
+  }
+  await checkAutoEnd(d.project_id)
+
+  res.json({ success: true, message: '支付确认成功' })
 })
 
 // ═══════════════════════════════════════════════════════════════
@@ -209,6 +256,42 @@ app.get('/api/love-wall', async (req, res) => {
   res.json(r.rows)
 })
 
+// ── Global Settings ─────────────────────────────────────────────
+app.get('/api/settings/:key', async (req, res) => {
+  const r = await query(`SELECT value FROM global_settings WHERE key=$1`, [req.params.key])
+  res.json({ key: req.params.key, value: r.rows[0]?.value || null })
+})
+
+// ── Global Settings ─────────────────────────────────────────────
+app.get('/api/settings/:key', async (req, res) => {
+  const r = await query(`SELECT value FROM global_settings WHERE key=$1`, [req.params.key])
+  res.json({ key: req.params.key, value: r.rows[0]?.value || null })
+})
+
+// ═══════════════════════════════════════════════════════════════
+//  PUBLIC – Certificate Query
+// ═══════════════════════════════════════════════════════════════
+app.get('/api/public/certificates/query', async (req, res) => {
+  const { name, contact } = req.query
+  if (!name && !contact) return res.status(400).json({ error: '姓名和电话至少填一项' })
+
+  let sql = `
+    SELECT d.id, d.donor_name, d.donor_contact, d.type, d.amount, d.goods_name, d.goods_qty,
+           d.certificate_code, d.certificate_generated_at, d.created_at,
+           p.title as project_title
+    FROM donations d
+    LEFT JOIN projects p ON d.project_id=p.id
+    WHERE d.status != 'pending'
+  `
+  const params = []
+  if (name) { params.push(name); sql += ` AND d.donor_name=$1` }
+  if (contact) { params.push(contact); sql += ` AND d.donor_contact=$2` }
+  sql += ` ORDER BY d.created_at DESC`
+
+  const r = await query(sql, params)
+  res.json(r.rows)
+})
+
 // ═══════════════════════════════════════════════════════════════
 //  ADMIN – Projects
 // ═══════════════════════════════════════════════════════════════
@@ -233,14 +316,14 @@ app.get('/api/admin/projects', requireAuth, async (req, res) => {
 })
 
 app.post('/api/admin/projects', requireAuth, async (req, res) => {
-  const { title, background, project_type, goods_name, goods_unit, goods_price, goods_target_qty, money_target, volunteer_target, deadline, status, media_urls, remarks } = req.body
+  const { title, background, project_type, goods_name, goods_unit, goods_price, goods_target_qty, money_target, volunteer_target, deadline, status, media_urls, remarks, payment_qr_url, goods_delivery_address } = req.body
   if (!title || !project_type || !deadline) return res.status(400).json({ error: '缺少必填字段' })
   if (!['goods_only','money_only','mixed'].includes(project_type)) return res.status(400).json({ error: '无效项目类型' })
 
   const r = await query(
-    `INSERT INTO projects (title, background, project_type, goods_name, goods_unit, goods_price, goods_target_qty, money_target, volunteer_target, deadline, status, media_urls, remarks)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-    [title, background||null, project_type, goods_name||null, goods_unit||null, goods_price||null, goods_target_qty||null, money_target||null, volunteer_target||0, deadline, status||'draft', JSON.stringify(media_urls||[]), remarks||null]
+    `INSERT INTO projects (title, background, project_type, goods_name, goods_unit, goods_price, goods_target_qty, money_target, volunteer_target, deadline, status, media_urls, remarks, payment_qr_url, goods_delivery_address)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+    [title, background||null, project_type, goods_name||null, goods_unit||null, goods_price||null, goods_target_qty||null, money_target||null, volunteer_target||0, deadline, status||'draft', JSON.stringify(media_urls||[]), remarks||null, payment_qr_url||null, goods_delivery_address||null]
   )
   await ensureProgress(r.rows[0].id)
   res.json(r.rows[0])
@@ -248,7 +331,7 @@ app.post('/api/admin/projects', requireAuth, async (req, res) => {
 
 app.put('/api/admin/projects/:id', requireAuth, async (req, res) => {
   const { id } = req.params
-  const fields = ['title','background','project_type','goods_name','goods_unit','goods_price','goods_target_qty','money_target','volunteer_target','deadline','status','media_urls','remarks']
+  const fields = ['title','background','project_type','goods_name','goods_unit','goods_price','goods_target_qty','money_target','volunteer_target','deadline','status','media_urls','remarks','payment_qr_url','goods_delivery_address']
   const updates = []
   const vals = []
   fields.forEach(f => {
@@ -372,12 +455,17 @@ app.post('/api/admin/donations/manual', requireAuth, async (req, res) => {
 })
 
 app.post('/api/admin/donations/:id/generate-certificate', requireAuth, async (req, res) => {
-  const { id } = req.params
-  const d = await query(`SELECT certificate_code FROM donations WHERE id=$1`, [id])
-  if (!d.rows[0]) return res.status(404).json({ error: '不存在' })
-  const code = d.rows[0].certificate_code || genCertCode()
-  await query(`UPDATE donations SET certificate_code=$1, certificate_generated_at=NOW() WHERE id=$2`, [code, id])
-  res.json({ certificateCode: code })
+  try {
+    const { id } = req.params
+    const d = await query(`SELECT certificate_code FROM donations WHERE id=$1`, [id])
+    if (!d.rows[0]) return res.status(404).json({ error: '不存在' })
+    const code = d.rows[0].certificate_code || genCertCode()
+    await query(`UPDATE donations SET certificate_code=$1, certificate_generated_at=NOW() WHERE id=$2`, [code, id])
+    res.json({ certificateCode: code })
+  } catch (err) {
+    console.error('generate-certificate error:', err.message, err.code)
+    res.status(500).json({ error: '服务器错误: ' + err.message })
+  }
 })
 
 // ═══════════════════════════════════════════════════════════════
@@ -592,6 +680,74 @@ app.put('/api/admin/media/:id/replace', requireAuth, async (req, res) => {
     await query(`UPDATE achievements SET media_urls=$1 WHERE id=$2`, [JSON.stringify(newUrls), ach.id])
   }
 
+  // Update love_stories
+  const stories = await query(`SELECT id, media_url FROM love_stories WHERE media_url=$1`, [old.rows[0].file_url])
+  for (const s of stories.rows) {
+    await query(`UPDATE love_stories SET media_url=$1 WHERE id=$2`, [new_file_url, s.id])
+  }
+
+  // Update love_wall
+  const walls = await query(`SELECT id, media_url FROM love_wall WHERE media_url=$1`, [old.rows[0].file_url])
+  for (const w of walls.rows) {
+    await query(`UPDATE love_wall SET media_url=$1 WHERE id=$2`, [new_file_url, w.id])
+  }
+
+  res.json({ success: true })
+})
+
+// PATCH /api/admin/media/:id — 编辑素材名称
+app.patch('/api/admin/media/:id', requireAuth, async (req, res) => {
+  const { id } = req.params
+  const { original_name } = req.body
+  if (!original_name) return res.status(400).json({ error: '名称不能为空' })
+  const r = await query(`UPDATE media_assets SET original_name=$1 WHERE id=$2 RETURNING *`, [original_name, id])
+  if (!r.rows[0]) return res.status(404).json({ error: '素材不存在' })
+  res.json(r.rows[0])
+})
+
+// DELETE /api/admin/media/:id — 删除（无引用才能删除）
+app.delete('/api/admin/media/:id', requireAuth, async (req, res) => {
+  const { id } = req.params
+  const m = await query(`SELECT * FROM media_assets WHERE id=$1`, [id])
+  if (!m.rows[0]) return res.status(404).json({ error: '素材不存在' })
+  const { file_url, public_id } = m.rows[0]
+
+  // 检查引用
+  const [proj, ach, story, wall] = await Promise.all([
+    query(`SELECT COUNT(*) as cnt FROM projects WHERE media_urls::text LIKE $1`, [`%${file_url}%`]),
+    query(`SELECT COUNT(*) as cnt FROM achievements WHERE media_urls::text LIKE $1`, [`%${file_url}%`]),
+    query(`SELECT COUNT(*) as cnt FROM love_stories WHERE media_url=$1`, [file_url]),
+    query(`SELECT COUNT(*) as cnt FROM love_wall WHERE media_url=$1`, [file_url]),
+  ])
+  const total = Number(proj.rows[0].cnt) + Number(ach.rows[0].cnt) + Number(story.rows[0].cnt) + Number(wall.rows[0].cnt)
+  if (total > 0) {
+    return res.status(400).json({ error: `该素材已被 ${total} 处引用，无法删除` })
+  }
+
+  // 删除 Neon 记录
+  await query(`DELETE FROM media_assets WHERE id=$1`, [id])
+
+  // 删除 Cloudinary 文件
+  if (public_id) {
+    try {
+      const apiKey = process.env.CLOUDINARY_API_KEY || '511821373688648'
+      const apiSecret = process.env.CLOUDINARY_API_SECRET || 'omBny0Pe74fAwFW_1F7iWwPf2u8'
+      const creds = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64')
+      await new Promise((resolve, reject) => {
+        const r = require('https').request({
+          hostname: 'api.cloudinary.com',
+          path: `/v1_1/dtultipb8/resources/image/upload/${encodeURIComponent(public_id)}`,
+          method: 'DELETE',
+          headers: { 'Authorization': `Basic ${creds}`, 'Content-Length': 0 }
+        }, res2 => { let d = ''; res2.on('data', c => d += c); res2.on('end', () => { console.log('Cloudinary delete:', res2.statusCode, d); resolve() }) })
+        r.on('error', e => { console.error('Cloudinary delete error:', e.message); resolve() })
+        r.end()
+      })
+    } catch (e) {
+      console.error('Cloudinary delete failed:', e.message)
+    }
+  }
+
   res.json({ success: true })
 })
 
@@ -642,6 +798,12 @@ app.get('/api/health', async (req, res) => {
   }
 })
 
+// ── Error handler ──────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error(`[ERROR] ${req.method} ${req.path}:`, err.message)
+  res.status(500).json({ error: err.message || 'Internal server error' })
+})
+
 // ── Start server ──────────────────────────────────────────────
 if (require.main === module) {
   app.listen(PORT, '0.0.0.0', (err) => {
@@ -650,4 +812,14 @@ if (require.main === module) {
   }).on('error', e => { console.error('Listen error:', e); process.exit(1) })
 }
 
-module.exports = app
+// Netlify Functions 导出（用于 netlify dev / netlify deploy）
+const serverless = require('serverless-http')
+exports.handler = serverless(app)
+
+// 本地开发直接运行
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', (err) => {
+    if (err) { console.error('Server error:', err); process.exit(1) }
+    console.log(`API server running on http://0.0.0.0:${PORT}`)
+  }).on('error', e => { console.error('Listen error:', e); process.exit(1) })
+}

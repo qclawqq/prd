@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom'
 import { formatMoney, calcGoalValue, calcCurrentValue, calcProgressPercent } from '../../utils/formatters'
 
-export default function ProjectCard({ project, progress }) {
+export default function ProjectCard({ project }) {
   const goalValue = calcGoalValue(project)
-  const currentValue = calcCurrentValue(progress || {}, project)
+  const currentValue = calcCurrentValue(project, project)
   const percent = calcProgressPercent(currentValue, goalValue)
 
   return (
